@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { appStore } from '../services/store';
 import { SchoolYear, User, UserRole } from '../types';
 import { Calendar, Users, Plus, CheckCircle2, Circle, Shield, User as UserIcon, Trash2, KeyRound } from 'lucide-react';
@@ -28,27 +28,25 @@ export default function SettingsManager() {
             </div>
 
             <div className="flex-1 overflow-hidden flex flex-col p-6 bg-slate-50 gap-6">
-                
+
                 {/* Tab Switcher */}
                 <div className="flex justify-center">
                     <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-sm inline-flex">
-                        <button 
+                        <button
                             onClick={() => setActiveTab('years')}
-                            className={`px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${
-                                activeTab === 'years' 
-                                ? 'bg-indigo-600 text-white shadow-md' 
+                            className={`px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'years'
+                                ? 'bg-indigo-600 text-white shadow-md'
                                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-                            }`}
+                                }`}
                         >
                             <Calendar className="w-4 h-4" /> Años Escolares
                         </button>
-                        <button 
+                        <button
                             onClick={() => setActiveTab('users')}
-                            className={`px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${
-                                activeTab === 'users' 
-                                ? 'bg-indigo-600 text-white shadow-md' 
+                            className={`px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'users'
+                                ? 'bg-indigo-600 text-white shadow-md'
                                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-                            }`}
+                                }`}
                         >
                             <Users className="w-4 h-4" /> Usuarios (Admin)
                         </button>
@@ -69,37 +67,48 @@ export default function SettingsManager() {
 }
 
 function SchoolYearsPanel({ onUpdate }: { onUpdate: () => void }) {
-    const years = appStore.getSchoolYears();
+    const [years, setYears] = useState<SchoolYear[]>([]);
+
+    useEffect(() => {
+        const fetchYears = async () => {
+            const y = await appStore.getSchoolYears();
+            setYears(y);
+        };
+        fetchYears();
+    }, [onUpdate]); // Re-fetch when onUpdate triggers re-render or dependency changes
     const [isAdding, setIsAdding] = useState(false);
     const [newName, setNewName] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
-    const handleAdd = (e: React.FormEvent) => {
+    const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
-        if(!newName || !startDate || !endDate) return;
+        if (!newName || !startDate || !endDate) return;
 
-        appStore.addSchoolYear({
-            id: crypto.randomUUID(),
+        await appStore.addSchoolYear({
             name: newName,
             startDate,
             endDate,
             isActive: false, // Default to inactive unless manually switched
             isClosed: false
         });
-        
+
         setIsAdding(false);
         setNewName('');
         setStartDate('');
         setEndDate('');
         onUpdate();
+
+        // Local refresh
+        const y = await appStore.getSchoolYears();
+        setYears(y);
     };
 
     return (
         <div className="flex flex-col h-full">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <h3 className="font-bold text-slate-700 text-lg">Historial de Periodos</h3>
-                <button 
+                <button
                     onClick={() => setIsAdding(true)}
                     className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 flex items-center gap-2 shadow-sm transition-all"
                 >
@@ -114,29 +123,29 @@ function SchoolYearsPanel({ onUpdate }: { onUpdate: () => void }) {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Nombre (Etiqueta)</label>
-                                <input 
-                                    className="w-full text-sm border-slate-300 rounded-lg p-2" 
-                                    placeholder="Ej. 2026-2027" 
-                                    value={newName} 
+                                <input
+                                    className="w-full text-sm border-slate-300 rounded-lg p-2"
+                                    placeholder="Ej. 2026-2027"
+                                    value={newName}
                                     onChange={e => setNewName(e.target.value)}
                                     autoFocus
                                 />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Fecha Inicio</label>
-                                <input 
-                                    type="date" 
+                                <input
+                                    type="date"
                                     className="w-full text-sm border-slate-300 rounded-lg p-2"
-                                    value={startDate} 
+                                    value={startDate}
                                     onChange={e => setStartDate(e.target.value)}
                                 />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Fecha Fin</label>
-                                <input 
-                                    type="date" 
+                                <input
+                                    type="date"
                                     className="w-full text-sm border-slate-300 rounded-lg p-2"
-                                    value={endDate} 
+                                    value={endDate}
                                     onChange={e => setEndDate(e.target.value)}
                                 />
                             </div>
@@ -182,37 +191,49 @@ function SchoolYearsPanel({ onUpdate }: { onUpdate: () => void }) {
 }
 
 function UsersPanel({ onUpdate }: { onUpdate: () => void }) {
-    const users = appStore.getUsers();
+    const [users, setUsers] = useState<User[]>([]);
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            const u = await appStore.getUsers();
+            setUsers(u);
+        };
+        fetchUsers();
+    }, [onUpdate]);
     const [isAdding, setIsAdding] = useState(false);
     const [fullName, setFullName] = useState('');
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     // Role is always Admin
 
-    const handleAdd = (e: React.FormEvent) => {
+    const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
-        if(!fullName || !username) return;
+        if (!fullName || !username || !email) return;
 
-        appStore.addUser({
-            id: crypto.randomUUID(),
-            fullName,
-            username,
-            email,
-            role: 'Admin',
-        });
+        if (!window.confirm('ATENCIÓN: Para registrar un nuevo administrador, el sistema debe cerrar su sesión actual e iniciar la del nuevo usuario para configurar sus credenciales.\n\n¿Desea continuar?')) {
+            return;
+        }
+
+        const result = await appStore.signUp(email, '123456', { username, fullName });
+
+        if (result) {
+            alert('Usuario creado exitosamente. La sesión se ha cerrado para inicializar la cuenta nueva.');
+            window.location.reload(); // Force reload to picking up new session state or return to login
+        } else {
+            alert('Error al crear usuario. Verifique que el correo no esté registrado.');
+        }
 
         setIsAdding(false);
         setFullName('');
         setUsername('');
         setEmail('');
-        onUpdate();
     };
 
     return (
         <div className="flex flex-col h-full">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <h3 className="font-bold text-slate-700 text-lg">Directorio de Administradores</h3>
-                <button 
+                <button
                     onClick={() => setIsAdding(true)}
                     className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-900 flex items-center gap-2 shadow-sm transition-all"
                 >

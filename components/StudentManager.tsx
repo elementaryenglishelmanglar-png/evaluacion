@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { appStore } from '../services/store';
 import { Student } from '../types';
 import { UserPlus, Camera, Upload, Users, Search, Phone, User, Save, Check } from 'lucide-react';
@@ -7,7 +7,7 @@ import { UserPlus, Camera, Upload, Users, Search, Phone, User, Save, Check } fro
 export default function StudentManager() {
     const [selectedGrade, setSelectedGrade] = useState('6to Grado');
     const [searchTerm, setSearchTerm] = useState('');
-    
+
     // Form State
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
@@ -19,7 +19,17 @@ export default function StudentManager() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // List Data
-    const students = appStore.getStudentsByGrade(selectedGrade).filter(s => 
+    const [students, setStudents] = useState<Student[]>([]);
+
+    useEffect(() => {
+        const fetchStudents = async () => {
+            const allStudents = await appStore.getStudentsByGrade(selectedGrade);
+            setStudents(allStudents);
+        };
+        fetchStudents();
+    }, [selectedGrade]);
+
+    const filteredStudents = students.filter(s =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -50,7 +60,7 @@ export default function StudentManager() {
         };
 
         appStore.addStudent(newStudent);
-        
+
         // Reset Form
         setFirstName('');
         setLastName('');
@@ -80,11 +90,11 @@ export default function StudentManager() {
             </div>
 
             <div className="flex-1 overflow-hidden flex flex-col lg:flex-row bg-slate-50 p-6 gap-6">
-                
+
                 {/* LEFT PANEL: Student List */}
                 <div className="w-full lg:w-1/3 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
                     <div className="p-4 border-b border-slate-100 bg-slate-50">
-                        <select 
+                        <select
                             value={selectedGrade}
                             onChange={(e) => setSelectedGrade(e.target.value)}
                             className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 mb-3"
@@ -98,7 +108,7 @@ export default function StudentManager() {
                         </select>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input 
+                            <input
                                 type="text"
                                 placeholder="Buscar alumno..."
                                 value={searchTerm}
@@ -107,7 +117,7 @@ export default function StudentManager() {
                             />
                         </div>
                     </div>
-                    
+
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                         {students.length === 0 ? (
                             <div className="p-8 text-center text-slate-400">
@@ -116,7 +126,7 @@ export default function StudentManager() {
                             </div>
                         ) : (
                             <div className="divide-y divide-slate-50">
-                                {students.map(s => (
+                                {filteredStudents.map(s => (
                                     <div key={s.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center gap-3">
                                         {s.photoUrl ? (
                                             <img src={s.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover shadow-sm" />
@@ -135,7 +145,7 @@ export default function StudentManager() {
                         )}
                     </div>
                     <div className="p-3 border-t border-slate-100 bg-slate-50 text-center text-xs text-slate-400 font-bold uppercase">
-                        {students.length} Estudiantes Inscritos
+                        {filteredStudents.length} Estudiantes Inscritos
                     </div>
                 </div>
 
@@ -150,11 +160,11 @@ export default function StudentManager() {
 
                     <form onSubmit={handleAddStudent} className="flex-1 overflow-y-auto p-8 custom-scrollbar">
                         <div className="max-w-3xl mx-auto space-y-8">
-                            
+
                             {/* 1. Photo & Basic Info */}
                             <div className="flex flex-col md:flex-row gap-8 items-start">
                                 <div className="flex flex-col items-center gap-4 shrink-0 mx-auto md:mx-0">
-                                    <div 
+                                    <div
                                         onClick={() => fileInputRef.current?.click()}
                                         className="w-32 h-32 rounded-full border-4 border-slate-100 bg-slate-50 flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:border-indigo-200 hover:text-indigo-500 transition-all overflow-hidden relative group shadow-inner"
                                     >
@@ -172,10 +182,10 @@ export default function StudentManager() {
                                             </>
                                         )}
                                     </div>
-                                    <input 
-                                        type="file" 
-                                        ref={fileInputRef} 
-                                        className="hidden" 
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        className="hidden"
                                         accept="image/*"
                                         onChange={handlePhotoUpload}
                                     />
@@ -186,9 +196,9 @@ export default function StudentManager() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-xs font-bold text-slate-600 mb-1">Nombres</label>
-                                            <input 
+                                            <input
                                                 required
-                                                type="text" 
+                                                type="text"
                                                 className="w-full border-slate-200 rounded-lg p-2.5 text-sm focus:ring-indigo-500"
                                                 placeholder="Ej. Juan Andrés"
                                                 value={firstName}
@@ -197,9 +207,9 @@ export default function StudentManager() {
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-600 mb-1">Apellidos</label>
-                                            <input 
+                                            <input
                                                 required
-                                                type="text" 
+                                                type="text"
                                                 className="w-full border-slate-200 rounded-lg p-2.5 text-sm focus:ring-indigo-500"
                                                 placeholder="Ej. Pérez García"
                                                 value={lastName}
@@ -209,9 +219,9 @@ export default function StudentManager() {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-slate-600 mb-1">Grado Asignado</label>
-                                        <input 
-                                            disabled 
-                                            value={selectedGrade} 
+                                        <input
+                                            disabled
+                                            value={selectedGrade}
                                             className="w-full bg-slate-50 border-slate-200 rounded-lg p-2.5 text-sm text-slate-500"
                                         />
                                     </div>
@@ -230,8 +240,8 @@ export default function StudentManager() {
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-600 mb-1">Nombre Completo</label>
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 className="w-full border-slate-200 rounded-lg p-2.5 text-sm focus:ring-indigo-500"
                                                 placeholder="Nombre de la madre"
                                                 value={motherName}
@@ -242,8 +252,8 @@ export default function StudentManager() {
                                             <label className="block text-xs font-bold text-slate-600 mb-1">Teléfono Móvil</label>
                                             <div className="relative">
                                                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                                <input 
-                                                    type="tel" 
+                                                <input
+                                                    type="tel"
                                                     className="w-full pl-9 border-slate-200 rounded-lg p-2.5 text-sm focus:ring-indigo-500"
                                                     placeholder="0414-000-0000"
                                                     value={motherPhone}
@@ -261,8 +271,8 @@ export default function StudentManager() {
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-600 mb-1">Nombre Completo</label>
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 className="w-full border-slate-200 rounded-lg p-2.5 text-sm focus:ring-indigo-500"
                                                 placeholder="Nombre del padre"
                                                 value={fatherName}
@@ -273,8 +283,8 @@ export default function StudentManager() {
                                             <label className="block text-xs font-bold text-slate-600 mb-1">Teléfono Móvil</label>
                                             <div className="relative">
                                                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                                <input 
-                                                    type="tel" 
+                                                <input
+                                                    type="tel"
                                                     className="w-full pl-9 border-slate-200 rounded-lg p-2.5 text-sm focus:ring-indigo-500"
                                                     placeholder="0414-000-0000"
                                                     value={fatherPhone}
@@ -290,7 +300,7 @@ export default function StudentManager() {
                     </form>
 
                     <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-end">
-                        <button 
+                        <button
                             onClick={handleAddStudent}
                             className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl transition-all flex items-center gap-2"
                         >

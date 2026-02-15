@@ -12,13 +12,17 @@ export default function Login({ onLogin }: LoginProps) {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const user = appStore.login(username, password);
-        if (user) {
-            onLogin();
-        } else {
-            setError('Credenciales inválidas. Intente con "admin"');
+        try {
+            const user = await appStore.login(username, password);
+            if (user) {
+                onLogin();
+            } else {
+                setError('Credenciales inválidas. Intente con "admin"');
+            }
+        } catch (err) {
+            setError('Error al iniciar sesión. Verifique su conexión.');
         }
     };
 
@@ -43,8 +47,8 @@ export default function Login({ onLogin }: LoginProps) {
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Usuario</label>
                             <div className="relative group">
                                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     autoFocus
                                     className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-slate-700 bg-slate-50 focus:bg-white"
                                     placeholder="Ingrese su usuario"
@@ -58,8 +62,8 @@ export default function Login({ onLogin }: LoginProps) {
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Contraseña</label>
                             <div className="relative group">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                                <input 
-                                    type="password" 
+                                <input
+                                    type="password"
                                     className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-slate-700 bg-slate-50 focus:bg-white"
                                     placeholder="••••••••"
                                     value={password}
@@ -74,7 +78,7 @@ export default function Login({ onLogin }: LoginProps) {
                             </div>
                         )}
 
-                        <button 
+                        <button
                             type="submit"
                             className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-slate-800 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5 flex items-center justify-center gap-2 group"
                         >

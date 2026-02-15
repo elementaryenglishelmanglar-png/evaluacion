@@ -2,7 +2,8 @@ import { GoogleGenAI } from "@google/genai";
 import { EvaluationRecord, ClassAnalysisResult, AICluster } from "../types";
 import { MOCK_AI_CLUSTERS } from "./mockData";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Client initialized lazily inside function to prevent crash
+// const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 // Simulate API call delay for better UX
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -11,10 +12,10 @@ export const analyzeClassPatterns = async (records: EvaluationRecord[]): Promise
   if (records.length === 0) return { clusters: [], summary: 'Sin datos para analizar' };
 
   try {
-    const model = 'gemini-3-flash-preview'; 
+    const model = 'gemini-3-flash-preview';
 
     // Construct the prompt with all observations
-    const observationsList = records.map(r => 
+    const observationsList = records.map(r =>
       `- Alumno: ${r.studentName}, Nota: ${r.grade}, Obs: "${r.teacherObservation}"`
     ).join('\n');
 
@@ -57,6 +58,7 @@ export const analyzeClassPatterns = async (records: EvaluationRecord[]): Promise
       };
     }
 
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: model,
       contents: prompt,
@@ -74,13 +76,13 @@ export const analyzeClassPatterns = async (records: EvaluationRecord[]): Promise
     console.error("Gemini Batch Analysis Failed:", error);
     // Fallback to mock data on error
     return {
-        clusters: MOCK_AI_CLUSTERS,
-        summary: "Datos simulados por error de conexión."
+      clusters: MOCK_AI_CLUSTERS,
+      summary: "Datos simulados por error de conexión."
     };
   }
 };
 
 export const analyzeObservation = async (observation: string) => {
-    // Keeping existing single analysis for backward compatibility if needed
-    return { sentiment: 'Neutral', programFlaws: [], summary: '' };
+  // Keeping existing single analysis for backward compatibility if needed
+  return { sentiment: 'Neutral', programFlaws: [], summary: '' };
 };

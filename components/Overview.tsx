@@ -3,22 +3,13 @@ import React, { useEffect, useState } from 'react';
 import { appStore } from '../services/store';
 import { Users, AlertOctagon, TrendingUp, Activity, ArrowUpRight, Calendar, User, UserCheck } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { seedData } from '../services/seed';
+
 
 export default function Overview() {
   const [stats, setStats] = useState<any>({ totalEvaluations: 0, studentsAtRisk: 0, activeAdaptations: 0, averageScore: "0.00" });
   const [recent, setRecent] = useState<any[]>([]);
   const [studentCounts, setStudentCounts] = useState<Record<string, number>>({});
-  const [isSeeding, setIsSeeding] = useState(false);
 
-  const handleSeed = async () => {
-    if (confirm('¿Estás seguro? Esto creará datos de prueba.')) {
-      setIsSeeding(true);
-      await seedData();
-      alert('Datos cargados. Recarga la página.');
-      setIsSeeding(false);
-    }
-  };
 
 
   // Force refresh for demo purposes when component mounts
@@ -90,16 +81,9 @@ export default function Overview() {
         <div>
           <h2 className="text-3xl font-black text-slate-800 tracking-tight">Panel de Control</h2>
           <p className="text-slate-500 text-lg">Resumen ejecutivo del rendimiento escolar y matrícula.</p>
-          {stats.totalEvaluations === 0 && (
-            <button onClick={handleSeed} disabled={isSeeding} className="mt-2 text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-md font-bold hover:bg-indigo-200">
-              {isSeeding ? 'Cargando...' : '🌱 Cargar Datos de Prueba'}
-            </button>
-          )}
+
         </div>
-        <div className="flex items-center gap-2 text-sm font-bold text-slate-500 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
-          <Calendar className="w-5 h-5 text-indigo-500" />
-          <span>Marzo 2025</span>
-        </div>
+
       </div>
 
       {/* 2. GRADE ENROLLMENT MATRIX (Vibrant Cards) */}

@@ -26,18 +26,7 @@ export default function EvaluationInput() {
     // ... (rest of state)
 
     // ... (inside render)
-    <select
-        value={year} onChange={(e) => setYear(e.target.value)}
-        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-lg font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
-    >
-        {schoolYears.length > 0 ? (
-            schoolYears.map(y => (
-                <option key={y.id} value={y.name}>{y.name}</option>
-            ))
-        ) : (
-            <option>Cargando...</option>
-        )}
-    </select>
+
     const [lapse, setLapse] = useState('I Lapso');
     const [grade, setGrade] = useState('1er Grado');
     const [subject, setSubject] = useState('Lenguaje');
@@ -207,7 +196,13 @@ export default function EvaluationInput() {
                                     value={year} onChange={(e) => setYear(e.target.value)}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-lg font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
                                 >
-                                    <option>2025-2026</option>
+                                    {schoolYears.length > 0 ? (
+                                        schoolYears.map(y => (
+                                            <option key={y.id} value={y.name}>{y.name}</option>
+                                        ))
+                                    ) : (
+                                        <option>Cargando...</option>
+                                    )}
                                 </select>
                             </div>
                             <div>

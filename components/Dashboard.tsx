@@ -389,6 +389,7 @@ export default function MeetingReports() {
                             >
                                 <option value="Lenguaje">Lenguaje</option>
                                 <option value="Matemáticas">Matemáticas</option>
+                                <option value="Inglés">Inglés</option>
                             </select>
                             <select
                                 value={context.term}

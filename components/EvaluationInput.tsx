@@ -9,7 +9,35 @@ export default function EvaluationInput() {
     const [step, setStep] = useState<1 | 2 | 3>(1);
 
     // STEP 1: Context
-    const [year, setYear] = useState('2025-2026');
+    const [year, setYear] = useState('');
+    const [schoolYears, setSchoolYears] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchYears = async () => {
+            const years = await appStore.getSchoolYears();
+            setSchoolYears(years);
+            const active = years.find(y => y.isActive);
+            if (active) setYear(active.name);
+            else if (years.length > 0) setYear(years[0].name);
+        };
+        fetchYears();
+    }, []);
+
+    // ... (rest of state)
+
+    // ... (inside render)
+    <select
+        value={year} onChange={(e) => setYear(e.target.value)}
+        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-lg font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+    >
+        {schoolYears.length > 0 ? (
+            schoolYears.map(y => (
+                <option key={y.id} value={y.name}>{y.name}</option>
+            ))
+        ) : (
+            <option>Cargando...</option>
+        )}
+    </select>
     const [lapse, setLapse] = useState('I Lapso');
     const [grade, setGrade] = useState('1er Grado');
     const [subject, setSubject] = useState('Lenguaje');

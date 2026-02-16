@@ -15,8 +15,22 @@ export default function MeetingReports() {
         grade: '6to Grado',
         subject: 'Lenguaje',
         term: AssessmentTerm.MONTH_1,
-        lapse: 'I Lapso'
+        lapse: 'I Lapso',
+        year: ''
     });
+
+    const [schoolYears, setSchoolYears] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchYears = async () => {
+            const years = await appStore.getSchoolYears();
+            setSchoolYears(years);
+            const active = years.find(y => y.isActive);
+            if (active) setContext(prev => ({ ...prev, year: active.name }));
+            else if (years.length > 0) setContext(prev => ({ ...prev, year: years[0].name }));
+        };
+        fetchYears();
+    }, []);
 
     const [analyzing, setAnalyzing] = useState(false);
     const [aiResult, setAiResult] = useState<ClassAnalysisResult | null>(null);
@@ -334,8 +348,14 @@ export default function MeetingReports() {
 
                     <div className="flex gap-2 items-center">
                         <div className="flex items-center bg-transparent border-r border-slate-200 pr-4 mr-2">
-                            <select className="bg-transparent font-bold text-slate-700 border-none focus:ring-0 cursor-pointer text-lg p-0 pr-2">
-                                <option>2025-2026</option>
+                            <select
+                                value={context.year}
+                                onChange={(e) => setContext({ ...context, year: e.target.value })}
+                                className="bg-transparent font-bold text-slate-700 border-none focus:ring-0 cursor-pointer text-lg p-0 pr-2"
+                            >
+                                {schoolYears.map(y => (
+                                    <option key={y.id} value={y.name}>{y.name}</option>
+                                ))}
                             </select>
                             <span className="text-slate-300 mx-1">/</span>
                             <select
@@ -355,8 +375,12 @@ export default function MeetingReports() {
                                 onChange={(e) => setContext({ ...context, grade: e.target.value })}
                                 className="bg-white border-0 text-sm font-medium rounded shadow-sm py-1.5 pl-3 pr-8 focus:ring-0 text-slate-700"
                             >
-                                <option value="6to Grado">6to Grado</option>
+                                <option value="1er Grado">1er Grado</option>
+                                <option value="2do Grado">2do Grado</option>
+                                <option value="3er Grado">3er Grado</option>
+                                <option value="4to Grado">4to Grado</option>
                                 <option value="5to Grado">5to Grado</option>
+                                <option value="6to Grado">6to Grado</option>
                             </select>
                             <select
                                 value={context.subject}

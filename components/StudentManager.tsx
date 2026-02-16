@@ -2,7 +2,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { appStore } from '../services/store';
 import { Student } from '../types';
-import { UserPlus, Camera, Upload, Users, Search, Phone, User, Save, Check } from 'lucide-react';
+import { UserPlus, Camera, Upload, Users, Search, Phone, User, Save, Check, Edit2, Trash2, ArrowUpCircle, BookOpen, MoreVertical, X } from 'lucide-react';
+import StudentHistory from './StudentHistory';
 
 export default function StudentManager() {
     const [selectedGrade, setSelectedGrade] = useState('6to Grado');
@@ -17,6 +18,11 @@ export default function StudentManager() {
     const [fatherPhone, setFatherPhone] = useState('');
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Edit Mode State
+    const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+    const [showHistoryFor, setShowHistoryFor] = useState<string | null>(null);
+
 
     // List Data
     const [students, setStudents] = useState<Student[]>([]);
@@ -41,27 +47,21 @@ export default function StudentManager() {
         }
     };
 
-    const handleAddStudent = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!firstName || !lastName) return;
 
-        const newStudent: Student = {
-            id: crypto.randomUUID(),
-            firstName,
-            lastName,
-            name: `${lastName}, ${firstName}`,
-            grade: selectedGrade,
-            status: 'Active',
-            motherName,
-            motherPhone,
-            fatherName,
-            fatherPhone,
-            photoUrl: photoPreview || undefined
-        };
 
-        appStore.addStudent(newStudent);
+    const handleEditStudent = (student: Student) => {
+        setEditingStudentId(student.id);
+        setFirstName(student.firstName);
+        setLastName(student.lastName);
+        setMotherName(student.motherName || '');
+        setFatherName(student.fatherName || '');
+        setMotherPhone(student.motherPhone || '');
+        setFatherPhone(student.fatherPhone || '');
+        setPhotoPreview(student.photoUrl || null);
+    };
 
-        // Reset Form
+    const handleCancelEdit = () => {
+        setEditingStudentId(null);
         setFirstName('');
         setLastName('');
         setMotherName('');
@@ -70,6 +70,115 @@ export default function StudentManager() {
         setFatherPhone('');
         setPhotoPreview(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleDeleteStudent = async (id: string, name: string) => {
+        if (!confirm(`¿Estás seguro de eliminar a ${name}? Esta acción no se puede deshacer.`)) return;
+
+        const success = await appStore.deleteStudent(id);
+        if (success) {
+            setStudents(students.filter(s => s.id !== id));
+            // Log is handled in store
+        }
+    };
+
+    const handlePromoteStudent = async (id: string, currentGrade: string, name: string) => {
+        const grades = ['1er Grado', '2do Grado', '3er Grado', '4to Grado', '5to Grado', '6to Grado', '1er Año'];
+        const idx = grades.indexOf(currentGrade);
+        if (idx === -1 || idx === grades.length - 1) return;
+
+        const nextGrade = grades[idx + 1];
+        if (!confirm(`¿Promover a ${name} a ${nextGrade}?`)) return;
+
+        const success = await appStore.updateStudent(id, { grade: nextGrade });
+        if (success) {
+            setStudents(students.filter(s => s.id !== id)); // Remove from current list
+            await appStore.logStudentAction({
+                studentId: id,
+                actionType: 'PROMOCION',
+                details: { from: currentGrade, to: nextGrade },
+                performedAt: new Date().toISOString()
+            });
+        }
+    };
+
+    const handleBulkPromote = async () => {
+        const grades = ['1er Grado', '2do Grado', '3er Grado', '4to Grado', '5to Grado', '6to Grado', '1er Año'];
+        const idx = grades.indexOf(selectedGrade);
+        if (idx === -1 || idx === grades.length - 1) return;
+
+        const nextGrade = grades[idx + 1];
+        if (!confirm(`¿Estás seguro de promover a TODOS los estudiantes de ${selectedGrade} a ${nextGrade}?`)) return;
+
+        let date = new Date().toISOString();
+        // Process sequentially to allow logs
+        // Optimally this should be a batch operation in backend, but for now loop
+        for (const s of students) {
+            await appStore.updateStudent(s.id, { grade: nextGrade });
+            await appStore.logStudentAction({
+                studentId: s.id,
+                actionType: 'PROMOCION',
+                details: { from: selectedGrade, to: nextGrade, type: 'BULK' },
+                performedAt: date
+            });
+        }
+        setStudents([]); // All moved
+    };
+
+    const handleAddOrUpdateStudent = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!firstName || !lastName) return;
+
+        if (editingStudentId) {
+            // Update Existing
+            const updates: Partial<Student> = {
+                firstName,
+                lastName,
+                name: `${lastName}, ${firstName}`,
+                motherName,
+                motherPhone,
+                fatherName,
+                fatherPhone,
+                photoUrl: photoPreview || undefined
+            };
+
+            const success = await appStore.updateStudent(editingStudentId, updates);
+            if (success) {
+                // Refresh list locally
+                setStudents(students.map(s => s.id === editingStudentId ? { ...s, ...updates } : s));
+                handleCancelEdit();
+            }
+
+        } else {
+            // Create New
+            const newStudent: Student = {
+                id: crypto.randomUUID(),
+                firstName,
+                lastName,
+                name: `${lastName}, ${firstName}`,
+                grade: selectedGrade,
+                status: 'Active',
+                motherName,
+                motherPhone,
+                fatherName,
+                fatherPhone,
+                photoUrl: photoPreview || undefined
+            };
+
+            const created = await appStore.addStudent(newStudent);
+
+            if (created) {
+                setStudents(prev => {
+                    const updated = [...prev, created];
+                    return updated.sort((a, b) => a.lastName.localeCompare(b.lastName));
+                });
+            } else {
+                alert("Hubo un error al registrar el estudiante.");
+            }
+
+            // Reset Form via Cancel (same logic)
+            handleCancelEdit();
+        }
     };
 
     return (
@@ -87,7 +196,25 @@ export default function StudentManager() {
                         <p className="text-slate-500 mt-1">Gestión de datos personales y familiares del alumnado</p>
                     </div>
                 </div>
+                {students.length > 0 && (
+                    <button
+                        onClick={handleBulkPromote}
+                        className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-50 hover:text-indigo-600 transition-colors shadow-sm"
+                    >
+                        <ArrowUpCircle className="w-4 h-4" />
+                        Promover Grado Completo
+                    </button>
+                )}
             </div>
+
+            {
+                showHistoryFor && (
+                    <StudentHistory
+                        studentId={showHistoryFor}
+                        onClose={() => setShowHistoryFor(null)}
+                    />
+                )
+            }
 
             <div className="flex-1 overflow-hidden flex flex-col lg:flex-row bg-slate-50 p-6 gap-6">
 
@@ -127,7 +254,7 @@ export default function StudentManager() {
                         ) : (
                             <div className="divide-y divide-slate-50">
                                 {filteredStudents.map(s => (
-                                    <div key={s.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center gap-3">
+                                    <div key={s.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center gap-3 group">
                                         {s.photoUrl ? (
                                             <img src={s.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover shadow-sm" />
                                         ) : (
@@ -135,9 +262,41 @@ export default function StudentManager() {
                                                 {s.firstName.charAt(0)}{s.lastName.charAt(0)}
                                             </div>
                                         )}
-                                        <div>
-                                            <p className="font-bold text-slate-700 text-sm">{s.lastName}, {s.firstName}</p>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-slate-700 text-sm truncate">{s.lastName}, {s.firstName}</p>
                                             <p className="text-xs text-slate-400">ID: {s.id.substring(0, 8)}</p>
+                                        </div>
+
+                                        {/* Quick Actions */}
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => setShowHistoryFor(s.id)}
+                                                title="Bitácora"
+                                                className="p-1.5 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                            >
+                                                <BookOpen className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleEditStudent(s)}
+                                                title="Editar"
+                                                className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handlePromoteStudent(s.id, s.grade, s.name)}
+                                                title="Promover"
+                                                className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors"
+                                            >
+                                                <ArrowUpCircle className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteStudent(s.id, s.name)}
+                                                title="Eliminar"
+                                                className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -153,12 +312,17 @@ export default function StudentManager() {
                 <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
                     <div className="p-6 border-b border-slate-100">
                         <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                            <div className="w-2 h-6 bg-indigo-500 rounded-full"></div>
-                            Ficha de Ingreso: {selectedGrade}
+                            <div className={`w-2 h-6 rounded-full ${editingStudentId ? 'bg-amber-500' : 'bg-indigo-500'}`}></div>
+                            {editingStudentId ? 'Editando Estudiante' : `Ficha de Ingreso: ${selectedGrade}`}
                         </h3>
+                        {editingStudentId && (
+                            <button onClick={handleCancelEdit} className="text-xs font-bold text-rose-500 hover:text-rose-700 flex items-center gap-1">
+                                <X className="w-3 h-3" /> Cancelar Edición
+                            </button>
+                        )}
                     </div>
 
-                    <form onSubmit={handleAddStudent} className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                    <form onSubmit={handleAddOrUpdateStudent} className="flex-1 overflow-y-auto p-8 custom-scrollbar">
                         <div className="max-w-3xl mx-auto space-y-8">
 
                             {/* 1. Photo & Basic Info */}
@@ -301,16 +465,21 @@ export default function StudentManager() {
 
                     <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-end">
                         <button
-                            onClick={handleAddStudent}
-                            className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl transition-all flex items-center gap-2"
+                            onClick={handleAddOrUpdateStudent}
+                            className={`px-8 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center gap-2
+                                ${editingStudentId
+                                    ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-200 text-white'
+                                    : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200 text-white'
+                                }
+                            `}
                         >
                             <Save className="w-5 h-5" />
-                            Matricular Estudiante
+                            {editingStudentId ? 'Guardar Cambios' : 'Matricular Estudiante'}
                         </button>
                     </div>
                 </div>
 
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

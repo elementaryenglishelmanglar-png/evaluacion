@@ -11,7 +11,9 @@ import {
     ActionPlan,
     ActionStatus,
     SchoolYear,
-    User
+    User,
+    StudentLog,
+    StudentActionType
 } from '../types';
 
 /**
@@ -371,7 +373,7 @@ class SupabaseStore {
             return null;
         }
 
-        return {
+        const newStudent = {
             id: data.id,
             firstName: data.first_name,
             lastName: data.last_name,
@@ -384,6 +386,116 @@ class SupabaseStore {
             fatherName: data.father_name,
             fatherPhone: data.father_phone,
         };
+
+        // Log action
+        await this.logStudentAction({
+            studentId: newStudent.id,
+            actionType: 'REGISTRO',
+            details: { grade: newStudent.grade },
+            performedAt: new Date().toISOString()
+        });
+
+        return newStudent;
+    }
+
+    async updateStudent(id: string, updates: Partial<Student>): Promise<boolean> {
+        const { error } = await supabase
+            .from('students')
+            .update({
+                first_name: updates.firstName,
+                last_name: updates.lastName,
+                grade: updates.grade,
+                status: updates.status,
+                photo_url: updates.photoUrl,
+                mother_name: updates.motherName,
+                mother_phone: updates.motherPhone,
+                father_name: updates.fatherName,
+                father_phone: updates.fatherPhone,
+            })
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error actualizando estudiante:', error.message);
+            return false;
+        }
+
+        await this.logStudentAction({
+            studentId: id,
+            actionType: 'EDICION',
+            details: updates,
+            performedAt: new Date().toISOString()
+        });
+
+        return true;
+    }
+
+    async deleteStudent(id: string): Promise<boolean> {
+        // En lugar de borrar físicamente, cambiamos estado a 'Withdrawn' (Retirado) para mantener historial
+        // O si se prefiere borrar: .delete().eq('id', id)
+
+        // Opción 1: Soft Delete (Recomendado para integridad)
+        /*
+        const { error } = await supabase
+            .from('students')
+            .update({ status: 'Withdrawn' })
+            .eq('id', id);
+        */
+
+        // Opción 2: Hard Delete (Si el usuario pidió "eliminar")
+        // Como hay FKs con cascade en logs y records, se borrará todo.
+        // Pero para "delete", el usuario suele esperar que desaparezca.
+
+        const { error } = await supabase
+            .from('students')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error eliminando estudiante:', error.message);
+            return false;
+        }
+
+        return true;
+    }
+
+    // =====================================================
+    // LOG DE ACCIONES
+    // =====================================================
+
+    async logStudentAction(log: Omit<StudentLog, 'id'>): Promise<void> {
+        const { error } = await supabase
+            .from('student_logs')
+            .insert({
+                student_id: log.studentId,
+                action_type: log.actionType,
+                details: log.details,
+                performed_at: log.performedAt
+            });
+
+        if (error) {
+            console.error('Error registrando log:', error.message);
+        }
+    }
+
+    async getStudentLogs(studentId: string): Promise<StudentLog[]> {
+        const { data, error } = await supabase
+            .from('student_logs')
+            .select('*')
+            .eq('student_id', studentId)
+            .order('performed_at', { ascending: false });
+
+        if (error) {
+            console.error('Error obteniendo logs:', error.message);
+            return [];
+        }
+
+        return (data || []).map(log => ({
+            id: log.id,
+            studentId: log.student_id,
+            actionType: log.action_type as StudentActionType,
+            details: log.details,
+            performedAt: log.performed_at
+        }));
     }
 
     // =====================================================
@@ -768,6 +880,7 @@ class SupabaseStore {
     async getStudentClinicalData(studentId: string) {
         const records = await this.getAllRecords();
         const plans = await this.getActionPlans();
+        const logs = await this.getStudentLogs(studentId);
 
         const evals = records
             .filter(r => r.studentId === studentId)
@@ -777,7 +890,9 @@ class SupabaseStore {
             .filter(p => p.targetId === studentId)
             .map(p => ({ type: 'INTERVENTION' as const, date: p.createdAt, data: p }));
 
-        const timeline = [...evals, ...interventions]
+        const systemLogs = logs.map(l => ({ type: 'LOG' as const, date: l.performedAt, data: l }));
+
+        const timeline = [...evals, ...interventions, ...systemLogs]
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         const closedInterventions = interventions.filter(

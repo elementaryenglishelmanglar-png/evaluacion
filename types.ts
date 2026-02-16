@@ -40,7 +40,7 @@ export interface Student {
   grade: string; // e.g., "5to Grado A"
   status: 'Active' | 'Withdrawn';
   photoUrl?: string;
-  
+
   // Family Data
   motherName?: string;
   motherPhone?: string;
@@ -74,18 +74,18 @@ export interface EvaluationRecord {
   studentName?: string; // Denormalized for display convenience
   indicatorId: string; // Linked to Competency ID now (Legacy support or direct link)
   month: string; // Stores the AssessmentTerm or Date
-  
+
   // Matrix Core Data
   grade: QualitativeGrade;
   challengeLevel: ChallengeLevel;
   adaptationType: AdaptationType;
   teacherObservation: string;
-  
+
   // Computed Data
-  internalValue: number;    
-  adaptationFactor: number; 
-  finalScore: number;       
-  
+  internalValue: number;
+  adaptationFactor: number;
+  finalScore: number;
+
   timestamp: string;
 }
 
@@ -161,4 +161,15 @@ export interface MeetingContextState {
   evaluation: string;
   grade: string;
   subject: string;
+}
+
+// LOGGING SYSTEM
+export type StudentActionType = 'REGISTRO' | 'EDICION' | 'ELIMINACION' | 'PROMOCION' | 'RETIRO';
+
+export interface StudentLog {
+  id: string;
+  studentId: string;
+  actionType: StudentActionType;
+  details: any; // Flexible JSON for diffs or notes
+  performedAt: string;
 }

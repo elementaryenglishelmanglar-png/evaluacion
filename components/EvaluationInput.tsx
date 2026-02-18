@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { QualitativeGrade, ChallengeLevel, AdaptationType, EvaluationRecord, AssessmentTerm, Competency } from '../types';
 import { appStore } from '../services/store';
 import { calculateEvaluationMetrics } from '../services/calcService';
-import { Save, User, CheckCircle2, ChevronRight, BookOpen, Calendar, GraduationCap, ArrowRight, Check, Search, Filter, Layers, CheckSquare } from 'lucide-react';
+import { Save, User, CheckCircle2, ChevronRight, BookOpen, Calendar, GraduationCap, ArrowRight, Check, Search, Filter, Layers, CheckSquare, Plus, AlertCircle } from 'lucide-react';
 
 export default function EvaluationInput() {
     const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -40,14 +40,18 @@ export default function EvaluationInput() {
     // STEP 3: Grading
     const [students, setStudents] = useState<any[]>([]);
 
-    // Fetch students on mount
+    // Fetch students when grade changes
     useEffect(() => {
         const fetchStudents = async () => {
-            const s = await appStore.getStudents();
-            setStudents(s);
+            if (grade) {
+                const s = await appStore.getStudentsByGrade(grade);
+                setStudents(s);
+                // Select first student by default if available
+                if (s.length > 0) setSelectedStudentId(s[0].id);
+            }
         };
         fetchStudents();
-    }, []);
+    }, [grade]);
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -113,12 +117,69 @@ export default function EvaluationInput() {
         }
     };
 
-    const handleConfirmCompetencies = () => {
-        if (selectedCompetencies.length === 0) return;
-        setActiveCompIndex(0);
-        setStep(3);
-        if (students.length > 0 && !selectedStudentId) setSelectedStudentId(students[0].id);
+    const [isCreatingGeneric, setIsCreatingGeneric] = useState(false);
+
+    const handleConfirmCompetencies = async () => {
+        if (selectedCompetencies.length === 0) {
+            setIsCreatingGeneric(true);
+            try {
+                const genericComp = await appStore.ensureGenericCompetency(grade, subject);
+                setSelectedCompetencies([genericComp]);
+                setActiveCompIndex(0);
+                setStep(3);
+                if (students.length > 0 && !selectedStudentId) setSelectedStudentId(students[0].id);
+            } catch (error) {
+                console.error("Failed to ensure generic competency", error);
+                alert("Error al crear la evaluación genérica. Por favor intente de nuevo.");
+            } finally {
+                setIsCreatingGeneric(false);
+            }
+        } else {
+            setActiveCompIndex(0);
+            setStep(3);
+            if (students.length > 0 && !selectedStudentId) setSelectedStudentId(students[0].id);
+        }
     };
+
+    const [contextRecords, setContextRecords] = useState<EvaluationRecord[]>([]);
+
+    // Fetch existing records when entering Step 3
+    useEffect(() => {
+        if (step === 3) {
+            const fetchContextRecords = async () => {
+                const records = await appStore.getRecordsByContext(grade, subject, term);
+                setContextRecords(records);
+                // Update saved list based on current active competency
+                if (activeCompetency) {
+                    const savedIds = records
+                        .filter(r => r.indicatorId === activeCompetency.id)
+                        .map(r => r.studentId);
+                    setSavedRecords(savedIds);
+                }
+            };
+            fetchContextRecords();
+        }
+    }, [step, grade, subject, term, activeCompetency]);
+
+    // Update form when student or competency changes
+    useEffect(() => {
+        if (selectedStudentId && activeCompetency) {
+            const existing = contextRecords.find(r =>
+                r.studentId === selectedStudentId &&
+                r.indicatorId === activeCompetency.id
+            );
+
+            if (existing) {
+                setGradeInput(existing.grade);
+                setLevelInput(existing.challengeLevel);
+                setObservationInput(existing.teacherObservation || '');
+            } else {
+                setGradeInput(null);
+                setLevelInput(ChallengeLevel.NORMAL);
+                setObservationInput('');
+            }
+        }
+    }, [selectedStudentId, activeCompetency, contextRecords]);
 
     const handleSaveStudent = async () => {
         if (!gradeInput || !selectedStudentId || !activeCompetency) return;
@@ -127,7 +188,7 @@ export default function EvaluationInput() {
         const metrics = calculateEvaluationMetrics(gradeInput, levelInput);
 
         const record: EvaluationRecord = {
-            id: crypto.randomUUID(),
+            id: crypto.randomUUID(), // In a real app we might want to UPSERT if it already exists
             studentId: selectedStudentId,
             studentName: student?.name,
             indicatorId: activeCompetency.id,
@@ -142,12 +203,10 @@ export default function EvaluationInput() {
 
         await appStore.addRecord(record);
 
-        setSavedRecords([...savedRecords, selectedStudentId]);
+        // Update local state to reflect change immediately without refetch
+        setContextRecords(prev => [...prev.filter(r => r.studentId !== selectedStudentId || r.indicatorId !== activeCompetency.id), record]);
+        setSavedRecords(prev => Array.from(new Set([...prev, selectedStudentId])));
         setJustSaved(true);
-
-        setGradeInput(null);
-        setLevelInput(ChallengeLevel.NORMAL);
-        setObservationInput('');
 
         // Advance Logic
         const filteredStudents = students.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -307,53 +366,65 @@ export default function EvaluationInput() {
                         <p className="text-slate-500 text-sm mb-4">Seleccione una o varias competencias para incluir en esta sesión de evaluación.</p>
 
                         <div className="space-y-4 overflow-y-auto flex-1 pr-2 custom-scrollbar">
-                            {availableCompetencies.length > 0 ? availableCompetencies.map(comp => {
-                                const isSelected = selectedCompetencies.some(c => c.id === comp.id);
-                                return (
-                                    <button
-                                        key={comp.id}
-                                        onClick={() => toggleCompetency(comp)}
-                                        className={`w-full text-left p-6 rounded-xl border transition-all group shadow-sm flex items-start gap-4 relative
+                            {availableCompetencies.length > 0 ? availableCompetencies
+                                .filter(comp => comp.description !== 'Evaluación General (Sin Competencia Asignada)')
+                                .map(comp => {
+                                    const isSelected = selectedCompetencies.some(c => c.id === comp.id);
+                                    return (
+                                        <button
+                                            key={comp.id}
+                                            onClick={() => toggleCompetency(comp)}
+                                            className={`w-full text-left p-6 rounded-xl border transition-all group shadow-sm flex items-start gap-4 relative
                                         ${isSelected
-                                                ? 'bg-indigo-50 border-indigo-500 shadow-md ring-1 ring-indigo-200'
-                                                : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'
-                                            }`}
-                                    >
-                                        <div className={`mt-1 w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors
+                                                    ? 'bg-indigo-50 border-indigo-500 shadow-md ring-1 ring-indigo-200'
+                                                    : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'
+                                                }`}
+                                        >
+                                            <div className={`mt-1 w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors
                                         ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
-                                            {isSelected && <Check className="w-4 h-4" />}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex justify-between items-start">
-                                                <p className={`font-bold text-lg ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                                    {comp.description}
-                                                </p>
+                                                {isSelected && <Check className="w-4 h-4" />}
                                             </div>
-                                            <div className="mt-3 flex items-center gap-2">
-                                                <span className={`text-[10px] uppercase font-bold px-3 py-1 rounded-lg border ${getTypeColor(comp.type)}`}>
-                                                    {translateType(comp.type)}
-                                                </span>
-                                                <span className="text-xs text-slate-400">ID: {comp.id}</span>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between items-start">
+                                                    <p className={`font-bold text-lg ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                                        {comp.description}
+                                                    </p>
+                                                </div>
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <span className={`text-[10px] uppercase font-bold px-3 py-1 rounded-lg border ${getTypeColor(comp.type)}`}>
+                                                        {translateType(comp.type)}
+                                                    </span>
+                                                    <span className="text-xs text-slate-400">ID: {comp.id}</span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </button>
-                                )
-                            }) : (
+                                        </button>
+                                    )
+                                }) : (
                                 <div className="text-center py-20 text-slate-400 bg-slate-50 rounded-xl border-dashed border-2 border-slate-200">
                                     <p className="text-lg">No se encontraron competencias cargadas para este criterio.</p>
                                 </div>
                             )}
                         </div>
 
-                        <div className="mt-6 pt-6 border-t border-slate-100 flex justify-end">
-                            <button
-                                onClick={handleConfirmCompetencies}
-                                disabled={selectedCompetencies.length === 0}
-                                className="bg-indigo-600 disabled:bg-slate-300 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all flex items-center gap-3 shadow-xl shadow-indigo-200 hover:shadow-2xl hover:-translate-y-1 disabled:shadow-none disabled:transform-none"
-                            >
-                                Comenzar Evaluación
-                                <ArrowRight className="w-6 h-6" />
-                            </button>
+                        <div className="mt-6 pt-6 border-t border-slate-100 flex justify-end gap-3">
+                            {selectedCompetencies.length === 0 ? (
+                                <button
+                                    onClick={handleConfirmCompetencies}
+                                    disabled={isCreatingGeneric}
+                                    className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all flex items-center gap-3 shadow-xl shadow-indigo-200 hover:shadow-2xl hover:-translate-y-1 disabled:opacity-70 disabled:hover:translate-y-0"
+                                >
+                                    {isCreatingGeneric ? 'Cargando...' : 'Saltar por ahora'}
+                                    <ArrowRight className="w-6 h-6" />
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleConfirmCompetencies}
+                                    className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all flex items-center gap-3 shadow-xl shadow-indigo-200 hover:shadow-2xl hover:-translate-y-1"
+                                >
+                                    Comenzar Evaluación
+                                    <ArrowRight className="w-6 h-6" />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -393,7 +464,7 @@ export default function EvaluationInput() {
                 </div>
 
                 {/* Competency Tabs */}
-                {selectedCompetencies.length > 0 && (
+                {selectedCompetencies.length > 0 ? (
                     <div className="px-6 flex gap-1 overflow-x-auto scrollbar-hide bg-slate-50 border-t border-slate-100">
                         {selectedCompetencies.map((comp, idx) => (
                             <button
@@ -407,6 +478,16 @@ export default function EvaluationInput() {
                                 {idx + 1}. {comp.description}
                             </button>
                         ))}
+                    </div>
+                ) : (
+                    <div className="px-6 py-2 border-t border-slate-100 bg-slate-50 flex justify-between items-center animate-in fade-in">
+                        <p className="text-sm text-slate-500 italic flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4" />
+                            Sin competencias seleccionadas
+                        </p>
+                        <button onClick={() => setStep(2)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition-all flex items-center gap-1 shadow-sm">
+                            <Plus className="w-3 h-3" /> Seleccionar
+                        </button>
                     </div>
                 )}
             </div>
@@ -499,76 +580,93 @@ export default function EvaluationInput() {
                             </div>
 
                             {/* Scrollable Form Area */}
-                            <div className="flex-1 overflow-y-auto p-6 xl:p-8">
-                                <div className="max-w-7xl mx-auto h-full grid grid-cols-1 xl:grid-cols-2 gap-6 xl:gap-8">
+                            {!activeCompetency ? (
+                                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 animate-in fade-in zoom-in-95 duration-300">
+                                    <div className="bg-indigo-50 p-6 rounded-full mb-6 border border-indigo-100 shadow-sm">
+                                        <Layers className="w-12 h-12 text-indigo-400" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-700 mb-2">Selecciona una competencia</h3>
+                                    <p className="text-slate-500 max-w-md mb-8 leading-relaxed">Para evaluar el desempeño de <strong>{students.find(s => s.id === selectedStudentId)?.name}</strong>, necesitamos saber qué competencia estás calificando.</p>
+                                    <button
+                                        onClick={() => setStep(2)}
+                                        className="px-6 py-3 bg-white border-2 border-indigo-600 text-indigo-700 rounded-xl font-bold hover:bg-indigo-50 transition-all flex items-center gap-2 shadow-sm hover:shadow-md"
+                                    >
+                                        <Plus className="w-5 h-5" />
+                                        Seleccionar Competencias
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex-1 overflow-y-auto p-6 xl:p-8">
+                                    <div className="max-w-7xl mx-auto h-full grid grid-cols-1 xl:grid-cols-2 gap-6 xl:gap-8">
 
-                                    {/* Column 1: Controls (Matrix) */}
-                                    <div className="flex flex-col gap-6">
-                                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex-1">
-                                            <div className="flex justify-between items-center mb-5">
-                                                <label className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                                    <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs">1</span>
-                                                    Nivel de Logro
-                                                </label>
-                                            </div>
-                                            <div className="grid grid-cols-4 gap-4">
-                                                {Object.values(QualitativeGrade).map(g => (
-                                                    <button
-                                                        key={g}
-                                                        onClick={() => setGradeInput(g)}
-                                                        className={`aspect-square rounded-2xl font-bold text-2xl flex flex-col items-center justify-center transition-all duration-200 
+                                        {/* Column 1: Controls (Matrix) */}
+                                        <div className="flex flex-col gap-6">
+                                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex-1">
+                                                <div className="flex justify-between items-center mb-5">
+                                                    <label className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs">1</span>
+                                                        Nivel de Logro
+                                                    </label>
+                                                </div>
+                                                <div className="grid grid-cols-4 gap-4">
+                                                    {Object.values(QualitativeGrade).map(g => (
+                                                        <button
+                                                            key={g}
+                                                            onClick={() => setGradeInput(g)}
+                                                            className={`aspect-square rounded-2xl font-bold text-2xl flex flex-col items-center justify-center transition-all duration-200 
                                                     ${getGradeColorClasses(g, gradeInput === g)}
                                                 `}
-                                                    >
-                                                        {g}
-                                                    </button>
-                                                ))}
+                                                        >
+                                                            {g}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                                                <label className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-5">
+                                                    <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs">2</span>
+                                                    Tipo de Adaptación
+                                                </label>
+                                                <div className="flex gap-4">
+                                                    {Object.values(ChallengeLevel).map(l => (
+                                                        <button
+                                                            key={l}
+                                                            onClick={() => setLevelInput(l)}
+                                                            className={`flex-1 py-4 px-4 rounded-xl border-2 font-bold transition-all ${levelInput === l
+                                                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
+                                                                : 'border-slate-100 bg-white text-slate-400 hover:border-slate-200 hover:text-slate-600'
+                                                                }`}
+                                                        >
+                                                            {l}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                                            <label className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-5">
-                                                <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs">2</span>
-                                                Tipo de Adaptación
-                                            </label>
-                                            <div className="flex gap-4">
-                                                {Object.values(ChallengeLevel).map(l => (
-                                                    <button
-                                                        key={l}
-                                                        onClick={() => setLevelInput(l)}
-                                                        className={`flex-1 py-4 px-4 rounded-xl border-2 font-bold transition-all ${levelInput === l
-                                                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
-                                                            : 'border-slate-100 bg-white text-slate-400 hover:border-slate-200 hover:text-slate-600'
-                                                            }`}
-                                                    >
-                                                        {l}
-                                                    </button>
-                                                ))}
+                                        {/* Column 2: Observation (Full Height) */}
+                                        <div className="flex flex-col h-full min-h-[300px]">
+                                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col h-full">
+                                                <label className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
+                                                    <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs">3</span>
+                                                    Observación Pedagógica
+                                                </label>
+                                                <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-3 text-sm text-indigo-800 italic">
+                                                    "{activeCompetency?.description}"
+                                                </div>
+                                                <textarea
+                                                    value={observationInput}
+                                                    onChange={(e) => setObservationInput(e.target.value)}
+                                                    placeholder="Ingrese detalles cualitativos del desempeño. El análisis de IA procesará este texto..."
+                                                    className="w-full flex-1 bg-slate-50 border-0 rounded-xl p-5 focus:ring-2 focus:ring-indigo-500 text-slate-700 resize-none text-base leading-relaxed"
+                                                ></textarea>
                                             </div>
                                         </div>
+
                                     </div>
-
-                                    {/* Column 2: Observation (Full Height) */}
-                                    <div className="flex flex-col h-full min-h-[300px]">
-                                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col h-full">
-                                            <label className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 mb-4">
-                                                <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs">3</span>
-                                                Observación Pedagógica
-                                            </label>
-                                            <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-3 text-sm text-indigo-800 italic">
-                                                "{activeCompetency?.description}"
-                                            </div>
-                                            <textarea
-                                                value={observationInput}
-                                                onChange={(e) => setObservationInput(e.target.value)}
-                                                placeholder="Ingrese detalles cualitativos del desempeño. El análisis de IA procesará este texto..."
-                                                className="w-full flex-1 bg-slate-50 border-0 rounded-xl p-5 focus:ring-2 focus:ring-indigo-500 text-slate-700 resize-none text-base leading-relaxed"
-                                            ></textarea>
-                                        </div>
-                                    </div>
-
                                 </div>
-                            </div>
+                            )}
 
                             {/* Sticky Footer Action Bar */}
                             <div className="p-4 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-20 flex justify-end shrink-0">
@@ -579,7 +677,7 @@ export default function EvaluationInput() {
                                     </div>
                                     <button
                                         onClick={handleSaveStudent}
-                                        disabled={!gradeInput}
+                                        disabled={!gradeInput || !activeCompetency}
                                         className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 transform active:scale-95"
                                     >
                                         <Save className="w-5 h-5" />

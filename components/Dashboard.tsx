@@ -7,7 +7,13 @@ import { appStore } from '../services/store';
 import { getGradeDistribution, getAdaptationStats, getGradeDistribution as getGradeDist, getGradesByAdaptationLevel } from '../services/calcService';
 import { analyzeClassPatterns } from '../services/geminiService';
 import { QualitativeGrade, ClassAnalysisResult, ChallengeLevel, AssessmentTerm, ActionPlan, ActionType, ActionStatus } from '../types';
-import { Loader2, Sparkles, Filter, Share2, PieChart as PieIcon, BarChart3, ClipboardList, CheckSquare, PlusCircle, X, CalendarDays, User, Users, CheckCircle2, XCircle, Clock, AlertCircle, Target, FileText } from 'lucide-react';
+import {
+    BarChart3, Calendar, Users, TrendingUp, AlertCircle, CheckCircle2,
+    Search, Filter, Download, ChevronDown, Plus, Brain, Target,
+    ArrowRight, BookOpen, GraduationCap, Clock, FileText, ClipboardList,
+    MoreHorizontal, ArrowUpRight, ArrowDownRight, Printer, Share2, Trash2,
+    Loader2, Sparkles, CheckSquare, PlusCircle, CalendarDays, User, X, XCircle, PieChart as PieIcon
+} from 'lucide-react';
 import StudentHistory from './StudentHistory';
 
 export default function MeetingReports() {
@@ -55,6 +61,13 @@ export default function MeetingReports() {
     const [records, setRecords] = useState<any[]>([]);
     const [actionPlans, setActionPlans] = useState<any[]>([]);
     const [interventionStats, setInterventionStats] = useState<any>({ distribution: [], successRate: 0, total: 0 });
+
+    // Competency Assignment Modal State
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [assignTargetRecordId, setAssignTargetRecordId] = useState<string | null>(null);
+    const [availableCompetencies, setAvailableCompetencies] = useState<any[]>([]);
+    const [selectedCompetenciesForAssign, setSelectedCompetenciesForAssign] = useState<string[]>([]);
+
 
     // Fetch Data Effect
     useEffect(() => {
@@ -162,6 +175,42 @@ export default function MeetingReports() {
         setClosingAction(null);
         setClosureNote('');
         setRefreshTrigger(p => p + 1);
+        setClosingAction(null);
+        setClosureNote('');
+        setRefreshTrigger(p => p + 1);
+    };
+
+    // --- Assignment Logic ---
+
+    const openAssignModal = async (recordId: string) => {
+        setAssignTargetRecordId(recordId);
+        // Load competencies for current context (ALL GRADES for this subject)
+        const comps = await appStore.getCompetencies(undefined, context.subject);
+        // Filter out "Generic" ones if we don't want to assign to generic again
+        setAvailableCompetencies(comps.filter(c => c.description !== 'Evaluación General (Sin Competencia Asignada)'));
+        setSelectedCompetenciesForAssign([]);
+        setShowAssignModal(true);
+    };
+
+    const toggleAssignCompetency = (compId: string) => {
+        if (selectedCompetenciesForAssign.includes(compId)) {
+            setSelectedCompetenciesForAssign(prev => prev.filter(id => id !== compId));
+        } else {
+            setSelectedCompetenciesForAssign(prev => [...prev, compId]);
+        }
+    };
+
+    const handleConfirmAssign = async () => {
+        if (!assignTargetRecordId || selectedCompetenciesForAssign.length === 0) return;
+
+        const success = await appStore.assignRecordToCompetencies(assignTargetRecordId, selectedCompetenciesForAssign);
+        if (success) {
+            setRefreshTrigger(p => p + 1);
+            setShowAssignModal(false);
+            setAssignTargetRecordId(null);
+        } else {
+            alert('Error al asignar competencias. Intente nuevamente.');
+        }
     };
 
     // --- Components ---
@@ -209,6 +258,41 @@ export default function MeetingReports() {
     }
 
     // --- RENDER ---
+    const GradeChart = ({ title, data, count }: { title: string, data: any[], count: number }) => {
+        if (count === 0) return (
+            <div>
+                <h5 className="text-xs font-bold text-slate-500 uppercase mb-2">{title}</h5>
+                <div className="text-center py-4 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-xs text-slate-400">
+                    Sin datos
+                </div>
+            </div>
+        );
+
+        return (
+            <div>
+                <div className="flex justify-between items-end mb-2">
+                    <h5 className="text-xs font-bold text-slate-500 uppercase">{title}</h5>
+                    <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">Total: {count}</span>
+                </div>
+                <div className="h-28">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#94a3b8' }} />
+                            <RechartsTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '12px' }} />
+                            <Bar dataKey="count" radius={[2, 2, 0, 0]}>
+                                {data.map((entry: any, index: number) => (
+                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="fixed inset-0 top-0 left-0 lg:left-64 bg-slate-50 flex flex-col z-10 animate-in fade-in duration-300">
 
@@ -218,6 +302,87 @@ export default function MeetingReports() {
                     studentId={viewingStudentId}
                     onClose={() => setViewingStudentId(null)}
                 />
+            )}
+
+            {/* ASSIGN COMPETENCY MODAL */}
+            {showAssignModal && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-8 flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                    <Target className="w-6 h-6 text-indigo-600" />
+                                    Asignar Competencia
+                                </h3>
+                                <p className="text-slate-500">Seleccione una o varias competencias para esta evaluación.</p>
+                            </div>
+                            <button onClick={() => setShowAssignModal(false)} className="text-slate-400 hover:text-rose-500">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6 mb-6">
+                            {availableCompetencies.length > 0 ? (
+                                // Group by Grade Level
+                                Object.entries(availableCompetencies.reduce((acc, comp) => {
+                                    const grade = comp.gradeLevel || 'Sin Grado';
+                                    if (!acc[grade]) acc[grade] = [];
+                                    acc[grade].push(comp);
+                                    return acc;
+                                }, {} as Record<string, any[]>)).sort((a, b) => a[0].localeCompare(b[0])).map(([grade, comps]) => (
+                                    <div key={grade}>
+                                        <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider mb-3 border-b border-slate-100 pb-1">{grade}</h4>
+                                        <div className="space-y-3">
+                                            {(comps as any[]).map(comp => {
+                                                const isSelected = selectedCompetenciesForAssign.includes(comp.id);
+                                                return (
+                                                    <button
+                                                        key={comp.id}
+                                                        onClick={() => toggleAssignCompetency(comp.id)}
+                                                        className={`w-full text-left p-4 rounded-xl border transition-all flex items-start gap-4
+                                                    ${isSelected
+                                                                ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-200'
+                                                                : 'bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm'
+                                                            }`}
+                                                    >
+                                                        <div className={`mt-1 w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors
+                                                    ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                                                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                                        </div>
+                                                        <div>
+                                                            <p className={`font-bold text-sm ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                                                {comp.description}
+                                                            </p>
+                                                            <span className="text-xs text-slate-400 mt-1 block uppercase font-bold tracking-wider">{comp.type}</span>
+                                                        </div>
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-center text-slate-400 py-10">No hay competencias disponibles para {context.subject}.</p>
+                            )}
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                            <button
+                                onClick={() => setShowAssignModal(false)}
+                                className="px-6 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleConfirmAssign}
+                                disabled={selectedCompetenciesForAssign.length === 0}
+                                className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg disabled:opacity-50 disabled:shadow-none"
+                            >
+                                Asignar ({selectedCompetenciesForAssign.length})
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* CLOSING ACTION MODAL */}
@@ -490,12 +655,37 @@ export default function MeetingReports() {
                                                         >
                                                             <ClipboardList className="w-5 h-5" />
                                                         </button>
+                                                        {(!r.indicatorId || r.competencies?.description === 'Evaluación General (Sin Competencia Asignada)' || !r.competencies) && (
+                                                            <button
+                                                                onClick={() => openAssignModal(r.id)}
+                                                                className="p-2 text-slate-300 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
+                                                                title="Asignar Competencia"
+                                                            >
+                                                                <Target className="w-5 h-5" />
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => setViewingStudentId(r.studentId)}
                                                             className="p-2 text-slate-300 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
                                                             title="Ver Historial Pedagógico"
                                                         >
                                                             <FileText className="w-5 h-5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (confirm('¿Estás seguro de que deseas eliminar esta evaluación?')) {
+                                                                    const success = await appStore.deleteEvaluationRecord(r.id);
+                                                                    if (success) {
+                                                                        setRecords(prev => prev.filter(rec => rec.id !== r.id));
+                                                                    } else {
+                                                                        alert('Error al eliminar la evaluación');
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="p-2 text-slate-300 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                                                            title="Eliminar Evaluación"
+                                                        >
+                                                            <Trash2 className="w-5 h-5" />
                                                         </button>
                                                     </div>
                                                 </td>
@@ -604,28 +794,21 @@ export default function MeetingReports() {
                             </div>
                         </div>
 
-                        {/* 1. Global Stats Card */}
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 shrink-0">
-                            <div className="flex items-center gap-2 mb-6">
-                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                                    <BarChart3 className="w-5 h-5" />
-                                </div>
-                                <h4 className="font-bold text-slate-800">Distribución de Notas</h4>
-                            </div>
-                            <div className="h-48 mb-4">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={gradeDist} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b', fontWeight: 600 }} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                                        <RechartsTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                                        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                                            {gradeDist.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.fill} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
+                        {/* Detailed Grade Analysis */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 shrink-0">
+                            <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <BarChart3 className="w-5 h-5 text-indigo-600" />
+                                Análisis de Rendimiento
+                            </h4>
+
+                            <div className="space-y-6">
+                                <GradeChart title="General (Todo el Salón)" data={gradeDist} count={records.length} />
+                                <div className="h-px bg-slate-100" />
+                                <GradeChart title="Estudiantes Regulares" data={getGradesByAdaptationLevel(records, ChallengeLevel.NORMAL)} count={records.filter(r => r.challengeLevel === ChallengeLevel.NORMAL).length} />
+                                <div className="h-px bg-slate-100" />
+                                <GradeChart title="Adaptación Curricular (+)" data={getGradesByAdaptationLevel(records, ChallengeLevel.AC_PLUS)} count={records.filter(r => r.challengeLevel === ChallengeLevel.AC_PLUS).length} />
+                                <div className="h-px bg-slate-100" />
+                                <GradeChart title="Adaptación Curricular (-)" data={getGradesByAdaptationLevel(records, ChallengeLevel.AC_MINUS)} count={records.filter(r => r.challengeLevel === ChallengeLevel.AC_MINUS).length} />
                             </div>
                         </div>
 

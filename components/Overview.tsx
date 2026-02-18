@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { appStore } from '../services/store';
-import { Users, AlertOctagon, TrendingUp, Activity, ArrowUpRight, Calendar, User, UserCheck } from 'lucide-react';
+import { Users, AlertOctagon, TrendingUp, Activity, ArrowUpRight, Calendar, User, UserCheck, Trash2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 
@@ -73,8 +73,93 @@ export default function Overview() {
     { id: '6to Grado', color: 'bg-[#00E5E5]', label: '6to Grado' }, // Cyan
   ];
 
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [allHistory, setAllHistory] = useState<any[]>([]);
+
+
+  const handleOpenHistory = async () => {
+    const history = await appStore.getAllRecords();
+    setAllHistory(history);
+    setShowHistoryModal(true);
+  };
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-10">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-10 relative">
+
+      {/* HISTORY MODAL */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-8 flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                  <Activity className="w-6 h-6 text-indigo-600" />
+                  Historial Completo
+                </h3>
+                <p className="text-slate-500">Registro detallado de todas las evaluaciones realizadas.</p>
+              </div>
+              <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-rose-500 transition-colors">
+                <div className="p-2 bg-slate-100 rounded-lg">
+                  cerrar (Esc)
+                </div>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto custom-scrollbar border rounded-xl border-slate-200">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                  <tr>
+                    <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
+                    <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Estudiante</th>
+                    <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Grado / Materia</th>
+                    <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Nota</th>
+                    <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Observación</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {allHistory.map((r, i) => (
+                    <tr key={i} className="hover:bg-indigo-50/30 transition-colors">
+                      <td className="p-4 text-sm text-slate-500 whitespace-nowrap">
+                        {new Date(r.timestamp).toLocaleDateString()} <span className="text-xs opacity-70">{new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-bold text-slate-700 text-sm">{r.studentName}</div>
+                      </td>
+                      <td className="p-4 text-sm text-slate-600">
+                        <span className="font-bold text-indigo-600">{r.gradeLevel || 'Sin Grado'}</span>
+                        <span className="mx-1 text-slate-300">|</span>
+                        {r.subject || 'General'}
+                      </td>
+                      <td className="p-4 text-center">
+                        <div className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold shadow-sm ${getBubbleColor(r.grade)}`}>
+                          {r.grade}
+                        </div>
+                      </td>
+                      <td className="p-4 text-sm text-slate-500 max-w-md truncate">
+                        {r.teacherObservation || <span className="italic opacity-50">Sin observación</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  {allHistory.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-10 text-center text-slate-400 italic">No hay registros en el historial.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end pt-6 border-t border-slate-100">
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="px-6 py-2 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg"
+              >
+                Cerrar Historial
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 1. Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -221,6 +306,7 @@ export default function Overview() {
         <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
           <h3 className="text-xl font-bold text-slate-800 mb-6">Actividad Reciente</h3>
           <div className="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar max-h-[320px]">
+            {recent.length === 0 && <p className="text-center text-slate-400 italic py-10">No hay actividad reciente.</p>}
             {recent.map((record) => (
               <div key={record.id} className="flex gap-4 items-start group">
                 <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-sm font-bold shadow-sm transition-transform group-hover:scale-110 ${getBubbleColor(record.grade)}`}>
@@ -243,7 +329,10 @@ export default function Overview() {
               </div>
             ))}
           </div>
-          <button className="w-full mt-6 py-3 text-sm text-indigo-600 font-bold bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors">
+          <button
+            onClick={handleOpenHistory}
+            className="w-full mt-6 py-3 text-sm text-indigo-600 font-bold bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
+          >
             Ver Todo el Historial
           </button>
         </div>

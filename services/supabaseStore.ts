@@ -502,12 +502,21 @@ class SupabaseStore {
     // GESTIÓN DE COMPETENCIAS E INDICADORES
     // =====================================================
 
-    async getCompetencies(grade: string, subject: string): Promise<Competency[]> {
-        const { data, error } = await supabase
+    async getCompetencies(grade?: string, subject?: string): Promise<Competency[]> {
+        let query = supabase
             .from('competencies')
             .select('*')
-            .eq('grade_level', grade)
-            .eq('subject', subject);
+            .order('description', { ascending: true }); // Order alphabetically by description
+
+        if (grade) {
+            query = query.eq('grade_level', grade);
+        }
+
+        if (subject) {
+            query = query.eq('subject', subject);
+        }
+
+        const { data, error } = await query;
 
         if (error) {
             console.error('Error obteniendo competencias:', error.message);
@@ -621,6 +630,124 @@ class SupabaseStore {
     }
 
     // =====================================================
+    // GESTIÓN DE COMPETENCIAS GENÉRICAS
+    // =====================================================
+
+    async ensureGenericCompetency(grade: string, subject: string): Promise<Competency> {
+        // 1. Buscar si ya existe la competencia genérica para este grado/materia
+        const { data: existing, error } = await supabase
+            .from('competencies')
+            .select('*')
+            .eq('grade_level', grade)
+            .eq('subject', subject)
+            .eq('description', 'Evaluación General (Sin Competencia Asignada)')
+            .maybeSingle();
+
+        if (existing) {
+            return {
+                id: existing.id,
+                subject: existing.subject,
+                gradeLevel: existing.grade_level,
+                description: existing.description,
+                type: existing.type as any,
+            };
+        }
+
+        // 2. Si no existe, crearla
+        const { data: newComp, error: createError } = await supabase
+            .from('competencies')
+            .insert({
+                subject: subject,
+                grade_level: grade,
+                description: 'Evaluación General (Sin Competencia Asignada)',
+                type: 'Concept', // Usamos un tipo válido en la BD
+            })
+            .select()
+            .single();
+
+        if (createError || !newComp) {
+            console.error('Error creando competencia genérica:', createError?.message);
+            throw new Error('No se pudo crear la competencia genérica');
+        }
+
+        return {
+            id: newComp.id,
+            subject: newComp.subject,
+            gradeLevel: newComp.grade_level,
+            description: newComp.description,
+            type: newComp.type as any,
+        };
+    }
+
+    async assignRecordToCompetencies(recordId: string, competencyIds: string[]): Promise<boolean> {
+        if (competencyIds.length === 0) return false;
+
+        // 1. Obtener el registro original
+        const { data: originalRecord, error: fetchError } = await supabase
+            .from('evaluation_records')
+            .select('*')
+            .eq('id', recordId)
+            .single();
+
+        if (fetchError || !originalRecord) {
+            console.error('Error obteniendo registro original:', fetchError?.message);
+            return false;
+        }
+
+        // 2. Actualizar el registro original con la primera competencia
+        const firstCompId = competencyIds[0];
+        const updates = {
+            indicator_id: firstCompId,
+            // Podríamos recalcular internal_value si dependiera del tipo de competencia, pero asumimos igual
+        };
+
+        const { error: updateError } = await supabase
+            .from('evaluation_records')
+            .update(updates)
+            .eq('id', recordId);
+
+        if (updateError) {
+            console.error('Error actualizando registro original:', updateError.message);
+            return false;
+        }
+
+        // 3. Si hay más competencias, crear copias del registro
+        if (competencyIds.length > 1) {
+            // Need to fetch details for the other competencies to verify compatibility? No, user action implies it.
+
+            // Prepare records to insert
+            // Note: We need UUIDs for new records if the DB doesn't auto-generate or if we use the store locally.
+            // Supabase auto-generates if we omit ID.
+
+            const newRecords = competencyIds.slice(1).map(compId => ({
+                student_id: originalRecord.student_id,
+                indicator_id: compId,
+                month: originalRecord.month,
+                grade: originalRecord.grade,
+                challenge_level: originalRecord.challenge_level,
+                adaptation_type: originalRecord.adaptation_type,
+                teacher_observation: originalRecord.teacher_observation,
+                internal_value: originalRecord.internal_value,
+                adaptation_factor: originalRecord.adaptation_factor,
+                final_score: originalRecord.final_score,
+                timestamp: new Date().toISOString() // Nuevo timestamp
+            }));
+
+            const { error: insertError } = await supabase
+                .from('evaluation_records')
+                .insert(newRecords);
+
+            if (insertError) {
+                console.error('Error creando copias de registros:', insertError.message);
+                // Return true anyway because the primary assignment worked
+                return true;
+            }
+        }
+
+        return true;
+    }
+
+    // =====================================================
     // GESTIÓN DE EVALUACIONES
     // =====================================================
 
@@ -664,7 +791,7 @@ class SupabaseStore {
             .select(`
         *,
         students:student_id (first_name, last_name, grade),
-        competencies:indicator_id (subject)
+        competencies:indicator_id (subject, description, type)
       `)
             .eq('month', term);
 
@@ -696,6 +823,13 @@ class SupabaseStore {
             adaptationFactor: Number(record.adaptation_factor),
             finalScore: Number(record.final_score),
             timestamp: record.timestamp,
+            competencies: record.competencies ? {
+                id: record.indicator_id,
+                subject: record.competencies.subject,
+                description: record.competencies.description,
+                type: record.competencies.type,
+                gradeLevel: '' // Not fetched but not needed for this check
+            } : undefined
         }));
     }
 
@@ -737,6 +871,34 @@ class SupabaseStore {
             finalScore: Number(data.final_score),
             timestamp: data.timestamp,
         };
+    }
+
+    async deleteEvaluationRecord(id: string): Promise<boolean> {
+        const { error } = await supabase
+            .from('evaluation_records')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error eliminando registro:', error.message);
+            return false;
+        }
+
+        return true;
+    }
+
+    async deleteAllEvaluationRecords(): Promise<boolean> {
+        const { error } = await supabase
+            .from('evaluation_records')
+            .delete()
+            .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows (id is never 0 uuid)
+
+        if (error) {
+            console.error('Error eliminando todos los registros:', error.message);
+            return false;
+        }
+
+        return true;
     }
 
     // =====================================================

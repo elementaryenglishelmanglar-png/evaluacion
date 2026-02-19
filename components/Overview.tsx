@@ -126,7 +126,7 @@ export default function Overview() {
                         <div className="font-bold text-slate-700 text-sm">{r.studentName}</div>
                       </td>
                       <td className="p-4 text-sm text-slate-600">
-                        <span className="font-bold text-indigo-600">{r.gradeLevel || 'Sin Grado'}</span>
+                        <span className="font-bold text-indigo-600">{r.studentGrade || 'Sin Grado'}</span>
                         <span className="mx-1 text-slate-300">|</span>
                         {r.subject || 'General'}
                       </td>
@@ -319,7 +319,7 @@ export default function Overview() {
                       {new Date(record.timestamp).getDate()}/{new Date(record.timestamp).getMonth() + 1}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">Lenguaje • 6to Grado</p>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">{record.subject || 'Asignatura'} • {record.studentGrade || 'Grado'}</p>
                   {record.teacherObservation.length > 0 && (
                     <div className="mt-2 text-xs text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 italic line-clamp-2">
                       "{record.teacherObservation}"

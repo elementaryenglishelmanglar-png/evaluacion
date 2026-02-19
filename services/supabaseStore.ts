@@ -756,7 +756,8 @@ class SupabaseStore {
             .from('evaluation_records')
             .select(`
         *,
-        students:student_id (first_name, last_name)
+        students:student_id (first_name, last_name, grade),
+        competencies:indicator_id (subject)
       `)
             .order('timestamp', { ascending: false });
 
@@ -771,6 +772,7 @@ class SupabaseStore {
             studentName: record.students
                 ? `${record.students.first_name} ${record.students.last_name}`
                 : undefined,
+            studentGrade: record.students?.grade,
             indicatorId: record.indicator_id,
             month: record.month,
             grade: record.grade as QualitativeGrade,
@@ -781,6 +783,7 @@ class SupabaseStore {
             adaptationFactor: Number(record.adaptation_factor),
             finalScore: Number(record.final_score),
             timestamp: record.timestamp,
+            subject: record.competencies?.subject,
         }));
     }
 
@@ -1078,6 +1081,7 @@ class SupabaseStore {
                 efficacyRate,
                 totalInterventions: interventions.length,
                 riskTrend,
+                evaluationsCount: evals.length,
                 lastUpdate: timeline[0]?.date || new Date().toISOString(),
             },
         };

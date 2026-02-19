@@ -117,7 +117,11 @@ export default function StudentHistory({ studentId, onClose }: StudentHistoryPro
                             <p className={`text-2xl font-bold ${clinicalData.stats.riskTrend === 'Alto Riesgo' ? 'text-rose-800' : 'text-emerald-800'}`}>
                                 {clinicalData.stats.riskTrend}
                             </p>
-                            <p className="text-xs text-slate-500 mt-1">Basado en últimas 3 evaluaciones</p>
+                            <p className="text-xs text-slate-500 mt-1">
+                                {clinicalData.stats.evaluationsCount > 0
+                                    ? `Basado en ${clinicalData.stats.evaluationsCount === 1 ? 'la última evaluación' : `últimas ${Math.min(3, clinicalData.stats.evaluationsCount)} evaluaciones`}`
+                                    : 'Sin evaluaciones registradas'}
+                            </p>
                         </div>
 
                         {/* 2. Intervention Efficacy (The requested feature) */}
@@ -264,7 +268,9 @@ export default function StudentHistory({ studentId, onClose }: StudentHistoryPro
                                                     <div className="flex justify-between items-start mb-3">
                                                         <div>
                                                             <span className="text-xs font-bold text-indigo-500 uppercase mb-1 block">Evaluación</span>
-                                                            <h4 className="font-bold text-slate-800 text-lg">Lenguaje - I Lapso</h4>
+                                                            <h4 className="font-bold text-slate-800 text-lg">
+                                                                {(data as EvaluationRecord).subject || 'Asignatura'} - {(data as EvaluationRecord).month}
+                                                            </h4>
                                                         </div>
                                                         <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xl font-bold border-2 ${getGradeColor((data as EvaluationRecord).grade)}`}>
                                                             {(data as EvaluationRecord).grade}

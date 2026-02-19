@@ -72,6 +72,7 @@ export interface EvaluationRecord {
   id: string;
   studentId: string;
   studentName?: string; // Denormalized for display convenience
+  studentGrade?: string; // Fetched from student record
   indicatorId: string; // Linked to Competency ID now (Legacy support or direct link)
   month: string; // Stores the AssessmentTerm or Date
 
@@ -80,6 +81,7 @@ export interface EvaluationRecord {
   challengeLevel: ChallengeLevel;
   adaptationType: AdaptationType;
   teacherObservation: string;
+  subject?: string; // Denormalized or fetched for display
 
   // Computed Data
   internalValue: number;

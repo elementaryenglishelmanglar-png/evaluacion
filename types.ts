@@ -40,6 +40,7 @@ export interface Student {
   grade: string; // e.g., "5to Grado A"
   status: 'Active' | 'Withdrawn';
   photoUrl?: string;
+  englishLevel?: 'Basic' | 'Lower' | 'Upper' | null;
 
   // Family Data
   motherName?: string;

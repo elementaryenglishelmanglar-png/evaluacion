@@ -275,16 +275,25 @@ class SupabaseStore {
             motherPhone: student.mother_phone,
             fatherName: student.father_name,
             fatherPhone: student.father_phone,
+            englishLevel: student.english_level,
         }));
     }
 
     async getStudentsByGrade(grade: string): Promise<Student[]> {
-        const { data, error } = await supabase
+        let query = supabase
             .from('students')
             .select('*')
-            .eq('grade', grade)
             .eq('status', 'Active')
             .order('last_name');
+
+        if (grade.startsWith('Inglés: ')) {
+            const level = grade.split(': ')[1];
+            query = query.in('grade', ['5to Grado', '6to Grado']).eq('english_level', level);
+        } else {
+            query = query.eq('grade', grade);
+        }
+
+        const { data, error } = await query;
 
         if (error) {
             console.error('Error obteniendo estudiantes por grado:', error.message);
@@ -303,6 +312,7 @@ class SupabaseStore {
             motherPhone: student.mother_phone,
             fatherName: student.father_name,
             fatherPhone: student.father_phone,
+            englishLevel: student.english_level,
         }));
     }
 
@@ -348,6 +358,7 @@ class SupabaseStore {
             motherPhone: data.mother_phone,
             fatherName: data.father_name,
             fatherPhone: data.father_phone,
+            englishLevel: data.english_level,
         };
     }
 
@@ -364,6 +375,7 @@ class SupabaseStore {
                 mother_phone: student.motherPhone,
                 father_name: student.fatherName,
                 father_phone: student.fatherPhone,
+                english_level: student.englishLevel,
             })
             .select()
             .single();
@@ -385,6 +397,7 @@ class SupabaseStore {
             motherPhone: data.mother_phone,
             fatherName: data.father_name,
             fatherPhone: data.father_phone,
+            englishLevel: data.english_level,
         };
 
         // Log action
@@ -411,6 +424,7 @@ class SupabaseStore {
                 mother_phone: updates.motherPhone,
                 father_name: updates.fatherName,
                 father_phone: updates.fatherPhone,
+                english_level: updates.englishLevel,
             })
             .eq('id', id);
 

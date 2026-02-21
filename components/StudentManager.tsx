@@ -16,6 +16,7 @@ export default function StudentManager() {
     const [fatherName, setFatherName] = useState('');
     const [motherPhone, setMotherPhone] = useState('');
     const [fatherPhone, setFatherPhone] = useState('');
+    const [englishLevel, setEnglishLevel] = useState<'Basic' | 'Lower' | 'Upper' | ''>('');
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,6 +58,7 @@ export default function StudentManager() {
         setFatherName(student.fatherName || '');
         setMotherPhone(student.motherPhone || '');
         setFatherPhone(student.fatherPhone || '');
+        setEnglishLevel(student.englishLevel || '');
         setPhotoPreview(student.photoUrl || null);
     };
 
@@ -68,6 +70,7 @@ export default function StudentManager() {
         setFatherName('');
         setMotherPhone('');
         setFatherPhone('');
+        setEnglishLevel('');
         setPhotoPreview(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
@@ -139,7 +142,8 @@ export default function StudentManager() {
                 motherPhone,
                 fatherName,
                 fatherPhone,
-                photoUrl: photoPreview || undefined
+                photoUrl: photoPreview || undefined,
+                englishLevel: englishLevel ? englishLevel as any : null
             };
 
             const success = await appStore.updateStudent(editingStudentId, updates);
@@ -162,7 +166,8 @@ export default function StudentManager() {
                 motherPhone,
                 fatherName,
                 fatherPhone,
-                photoUrl: photoPreview || undefined
+                photoUrl: photoPreview || undefined,
+                englishLevel: englishLevel ? englishLevel as any : null
             };
 
             const created = await appStore.addStudent(newStudent);
@@ -264,7 +269,14 @@ export default function StudentManager() {
                                         )}
                                         <div className="flex-1 min-w-0">
                                             <p className="font-bold text-slate-700 text-sm truncate">{s.lastName}, {s.firstName}</p>
-                                            <p className="text-xs text-slate-400">ID: {s.id.substring(0, 8)}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs text-slate-400">ID: {s.id.substring(0, 8)}</p>
+                                                {s.englishLevel && (
+                                                    <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wide">
+                                                        {s.englishLevel}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* Quick Actions */}
@@ -389,6 +401,21 @@ export default function StudentManager() {
                                             className="w-full bg-slate-50 border-slate-200 rounded-lg p-2.5 text-sm text-slate-500"
                                         />
                                     </div>
+                                    {(selectedGrade === '5to Grado' || selectedGrade === '6to Grado') && (
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-600 mb-1">Grupo Inglés (Opcional)</label>
+                                            <select
+                                                value={englishLevel}
+                                                onChange={(e) => setEnglishLevel(e.target.value as any)}
+                                                className="w-full border-slate-200 rounded-lg p-2.5 text-sm focus:ring-indigo-500"
+                                            >
+                                                <option value="">No Asignado</option>
+                                                <option value="Basic">Basic</option>
+                                                <option value="Lower">Lower</option>
+                                                <option value="Upper">Upper</option>
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

@@ -537,7 +537,14 @@ export default function MeetingReports() {
                         <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
                             <select
                                 value={context.grade}
-                                onChange={(e) => setContext({ ...context, grade: e.target.value })}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setContext(prev => ({
+                                        ...prev,
+                                        grade: val,
+                                        subject: val.startsWith('Inglés: ') ? 'Inglés' : prev.subject
+                                    }));
+                                }}
                                 className="bg-white border-0 text-sm font-medium rounded shadow-sm py-1.5 pl-3 pr-8 focus:ring-0 text-slate-700"
                             >
                                 <option value="1er Grado">1er Grado</option>
@@ -546,11 +553,17 @@ export default function MeetingReports() {
                                 <option value="4to Grado">4to Grado</option>
                                 <option value="5to Grado">5to Grado</option>
                                 <option value="6to Grado">6to Grado</option>
+                                <optgroup label="Niveles de Inglés">
+                                    <option value="Inglés: Basic">Inglés: Basic</option>
+                                    <option value="Inglés: Lower">Inglés: Lower</option>
+                                    <option value="Inglés: Upper">Inglés: Upper</option>
+                                </optgroup>
                             </select>
                             <select
                                 value={context.subject}
                                 onChange={(e) => setContext({ ...context, subject: e.target.value })}
-                                className="bg-white border-0 text-sm font-medium rounded shadow-sm py-1.5 pl-3 pr-8 focus:ring-0 text-slate-700"
+                                disabled={context.grade.startsWith('Inglés: ')}
+                                className="bg-white border-0 text-sm font-medium rounded shadow-sm py-1.5 pl-3 pr-8 focus:ring-0 text-slate-700 disabled:opacity-50"
                             >
                                 <option value="Lenguaje">Lenguaje</option>
                                 <option value="Matemáticas">Matemáticas</option>

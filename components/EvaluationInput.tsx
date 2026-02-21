@@ -103,7 +103,8 @@ export default function EvaluationInput() {
     // --- Handlers ---
 
     const handleContextSubmit = async () => {
-        const comps = await appStore.getCompetencies(grade, subject);
+        const compGrade = grade.startsWith('Inglés: ') ? 'Nivel de Inglés' : grade;
+        const comps = await appStore.getCompetencies(compGrade, subject);
         setAvailableCompetencies(comps);
         setSelectedCompetencies([]); // Reset selections on context change
         setStep(2);
@@ -123,7 +124,8 @@ export default function EvaluationInput() {
         if (selectedCompetencies.length === 0) {
             setIsCreatingGeneric(true);
             try {
-                const genericComp = await appStore.ensureGenericCompetency(grade, subject);
+                const compGrade = grade.startsWith('Inglés: ') ? 'Nivel de Inglés' : grade;
+                const genericComp = await appStore.ensureGenericCompetency(compGrade, subject);
                 setSelectedCompetencies([genericComp]);
                 setActiveCompIndex(0);
                 setStep(3);
@@ -282,7 +284,10 @@ export default function EvaluationInput() {
                             <div>
                                 <label className="block text-sm font-bold text-slate-500 uppercase mb-3">Grado / Curso</label>
                                 <select
-                                    value={grade} onChange={(e) => setGrade(e.target.value)}
+                                    value={grade} onChange={(e) => {
+                                        setGrade(e.target.value);
+                                        if (e.target.value.startsWith('Inglés: ')) setSubject('Inglés');
+                                    }}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-lg font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
                                 >
                                     <option value="1er Grado">1er Grado</option>
@@ -291,6 +296,11 @@ export default function EvaluationInput() {
                                     <option value="4to Grado">4to Grado</option>
                                     <option value="5to Grado">5to Grado</option>
                                     <option value="6to Grado">6to Grado</option>
+                                    <optgroup label="Niveles de Inglés">
+                                        <option value="Inglés: Basic">Inglés: Basic (5to y 6to)</option>
+                                        <option value="Inglés: Lower">Inglés: Lower (5to y 6to)</option>
+                                        <option value="Inglés: Upper">Inglés: Upper (5to y 6to)</option>
+                                    </optgroup>
                                 </select>
                             </div>
                             <div>
@@ -310,15 +320,19 @@ export default function EvaluationInput() {
                         <div>
                             <label className="block text-sm font-bold text-slate-500 uppercase mb-3">Materia</label>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {['Lenguaje', 'Matemáticas', 'Inglés'].map(subj => (
-                                    <button
-                                        key={subj}
-                                        onClick={() => setSubject(subj)}
-                                        className={`py-4 rounded-xl border-2 font-bold text-lg transition-all ${subject === subj ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md transform -translate-y-1' : 'border-slate-100 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600'}`}
-                                    >
-                                        {subj}
-                                    </button>
-                                ))}
+                                {['Lenguaje', 'Matemáticas', 'Inglés'].map(subj => {
+                                    const isDisabled = grade.startsWith('Inglés: ') && subj !== 'Inglés';
+                                    return (
+                                        <button
+                                            key={subj}
+                                            onClick={() => !isDisabled && setSubject(subj)}
+                                            disabled={isDisabled}
+                                            className={`py-4 rounded-xl border-2 font-bold text-lg transition-all ${isDisabled ? 'opacity-50 cursor-not-allowed bg-slate-50 text-slate-300 border-slate-200' : subject === subj ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md transform -translate-y-1' : 'border-slate-100 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600'}`}
+                                        >
+                                            {subj}
+                                        </button>
+                                    )
+                                })}
                             </div>
                         </div>
                     </div>

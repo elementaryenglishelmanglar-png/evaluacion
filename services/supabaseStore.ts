@@ -801,16 +801,21 @@ class SupabaseStore {
         }));
     }
 
-    async getRecordsByContext(grade: string, subject: string, term: string): Promise<EvaluationRecord[]> {
+    async getRecordsByContext(grade: string, subject: string, term: string, lapse?: string, schoolYear?: string): Promise<EvaluationRecord[]> {
         // Esta query es más compleja porque necesita filtrar por grado del estudiante y materia de la competencia
-        const { data, error } = await supabase
+        let query = supabase
             .from('evaluation_records')
             .select(`
         *,
-        students:student_id (first_name, last_name, grade),
+        students:student_id (first_name, last_name, grade, english_level),
         competencies:indicator_id (subject, description, type)
       `)
             .eq('month', term);
+
+        if (lapse) query = query.eq('lapse', lapse);
+        if (schoolYear) query = query.eq('school_year', schoolYear);
+
+        const { data, error } = await query;
 
         if (error) {
             console.error('Error obteniendo registros por contexto:', error.message);
@@ -821,6 +826,14 @@ class SupabaseStore {
         const filtered = (data || []).filter(record => {
             const studentGrade = record.students?.grade;
             const competencySubject = record.competencies?.subject;
+
+            if (grade.startsWith('Inglés: ')) {
+                const level = grade.split(':')[1].trim();
+                return ['5to Grado', '6to Grado'].includes(studentGrade) &&
+                    record.students?.english_level === level &&
+                    competencySubject === subject;
+            }
+
             return studentGrade === grade && competencySubject === subject;
         });
 
@@ -832,6 +845,8 @@ class SupabaseStore {
                 : undefined,
             indicatorId: record.indicator_id,
             month: record.month,
+            lapse: record.lapse,
+            schoolYear: record.school_year,
             grade: record.grade as QualitativeGrade,
             challengeLevel: record.challenge_level as ChallengeLevel,
             adaptationType: record.adaptation_type as AdaptationType,
@@ -857,6 +872,8 @@ class SupabaseStore {
                 student_id: record.studentId,
                 indicator_id: record.indicatorId,
                 month: record.month,
+                lapse: record.lapse,
+                school_year: record.schoolYear,
                 grade: record.grade,
                 challenge_level: record.challengeLevel,
                 adaptation_type: record.adaptationType,
@@ -879,6 +896,8 @@ class SupabaseStore {
             studentId: data.student_id,
             indicatorId: data.indicator_id,
             month: data.month,
+            lapse: data.lapse,
+            schoolYear: data.school_year,
             grade: data.grade as QualitativeGrade,
             challengeLevel: data.challenge_level as ChallengeLevel,
             adaptationType: data.adaptation_type as AdaptationType,

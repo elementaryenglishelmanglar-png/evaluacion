@@ -76,6 +76,8 @@ export interface EvaluationRecord {
   studentGrade?: string; // Fetched from student record
   indicatorId: string; // Linked to Competency ID now (Legacy support or direct link)
   month: string; // Stores the AssessmentTerm or Date
+  lapse?: string; // e.g., "I Lapso", "II Lapso", "III Lapso"
+  schoolYear?: string; // e.g., "2025-2026"
 
   // Matrix Core Data
   grade: QualitativeGrade;

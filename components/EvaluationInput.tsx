@@ -195,6 +195,8 @@ export default function EvaluationInput() {
             studentName: student?.name,
             indicatorId: activeCompetency.id,
             month: term,
+            lapse: lapse,
+            schoolYear: year,
             grade: gradeInput,
             challengeLevel: levelInput,
             adaptationType: AdaptationType.NONE,

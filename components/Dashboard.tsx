@@ -72,7 +72,7 @@ export default function MeetingReports() {
     // Fetch Data Effect
     useEffect(() => {
         const fetchData = async () => {
-            const r = await appStore.getRecordsByContext(context.grade, context.subject, context.term);
+            const r = await appStore.getRecordsByContext(context.grade, context.subject, context.term, context.lapse, context.year);
             const ap = await appStore.getActionPlans();
             const is = await appStore.getInterventionStats();
             setRecords(r);

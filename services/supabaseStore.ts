@@ -287,7 +287,7 @@ class SupabaseStore {
             .order('last_name');
 
         if (grade.startsWith('Inglés: ')) {
-            const level = grade.split(': ')[1];
+            const level = grade.split(': ')[1].trim();
             query = query.in('grade', ['5to Grado', '6to Grado']).eq('english_level', level);
         } else {
             query = query.eq('grade', grade);
